@@ -22,7 +22,7 @@
   .wrap{max-width:760px;margin:0 auto;padding:0 0 60px;}
   .brand-header{background:var(--paper);color:var(--accent);padding:28px 24px;text-align:center;}
   .brand-header img{max-width:280px;width:70%;height:auto;display:block;margin:0 auto 14px;}
-  .brand-header h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.01em;color:var(--accent);}
+  .brand-header h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.01em;color:var(--ink);}
   .brand-header p{margin:8px 0 0;font-size:13px;opacity:.92;max-width:520px;margin-left:auto;margin-right:auto;color:var(--accent);}
   .plain-header{padding:32px 24px 20px;text-align:center;}
   .plain-header h1{margin:0;font-size:22px;font-weight:700;color:var(--ink);}
@@ -56,6 +56,7 @@
   .choice input{margin:0;accent-color:var(--accent);}
   .choice.checked{background:var(--accent-soft);border-color:var(--accent);font-weight:600;}
   .subhead{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin:20px 0 10px;padding-top:16px;border-top:1px dashed var(--line);}
+  .note-hint{font-size:11.5px;color:var(--ink-soft);font-style:italic;margin:-8px 0 14px;}
   .subhead:first-child{margin-top:0;padding-top:0;border-top:none;}
   table.grid{width:100%;border-collapse:collapse;font-size:13px;}
   table.grid th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);padding:8px 6px;border-bottom:1.5px solid var(--line);}
@@ -131,23 +132,23 @@ const STATE = {
   departureDate:'', departureAirport:'', departureFlight:'', departureTime:'', departureTransport:'',
   hotelBeforeName:'', hotelBeforeIn:'', hotelBeforeOut:'',
   hotelAfterName:'', hotelAfterIn:'', hotelAfterOut:'',
-  passengers: [ {id:uid(), name:'', nationality:'', dob:'', passportNo:'', passportExpiry:''} ],
-  pace: '', interests: {}, sightseeingWishlist:'',
+  passengers: [ {id:uid(), name:'', nationality:'', dob:'', passportNo:'', passportExpiry:''}, {id:uid(), name:'', nationality:'', dob:'', passportNo:'', passportExpiry:''} ],
+  pace: '', interests: {}, sightseeingWishlist:'', equipmentRequests:'',
   mealTimes:{breakfast:'', lunch:'', dinner:''},
   breakfastStyle:{type:'', weight:'', notes:''},
   breakfastItems: {}, breakfastSpreads: {},
-  lunchStyle:{type:[], weight:'', service:'', comments:''},
+  lunchStyle:{type:[], weight:'', service:'', courses:'', comments:''},
   afternoonTea:'',
   dinnerStyle:{style:'', formal:'', aperitifs:'', startersDesserts:'', cheeseBiscuits:'', service:'', courses:'', comments:''},
   canapes:{beforeLunch:false, beforeDinner:false, light:false, comments:''},
   snacks:{midMorningSweet:false, midMorningSavoury:false, afternoonSweet:false, afternoonSavoury:false, lateEvening:false, other:'', favourites:''},
-  dineAshore:'', cookingStyle:[], beefDoneness:'', soup:'', mayoCream:'',
+  dineAshore:'', cookingStyle:[], beefDoneness:'', soup:'', mayoCream:'', diningAdditionalInfo:'',
   foodGrid: [
     'Beef','Pork','Lamb','Veal','Poultry / Chicken','Turkey','Duck','Game','Liver',
     'Fish','Shellfish / Seafood','Dairy Products','Pasta','Salads','Vegetables','Fruit',
     'Cheese','Desserts / Cakes','Snacks & Cocktail Food'
   ].map(item=>({id:uid(), item, like:false, dislike:false, notes:''})),
-  specialDiets: {}, specialDietsOther:'', vegetarianEats:{eggs:false,cheese:false,fish:false},
+  specialDiets: {}, specialDietsOther:'', specialDietsWho:'', vegetarianEats:{eggs:false,cheese:false,fish:false},
   cuisineTags: {}, cuisineStyle:'', cuisineDislike:'', favoriteDishes:'', ingredientsAvoid:'',
   fishTypes: {}, fishDislike:'', meatFavorites:'',
   breadTypes: {}, saladTypes: {},
@@ -160,9 +161,9 @@ const STATE = {
   maxPrice: [ {id:uid(), type:'', price:''} ],
   spirits: [ {id:uid(), type:'', brand:'', qty:'', priceRange:''} ],
   softDrinks:'', cocktails:'', beers:'',
-  milkType:'', coffeeType:'', coffeeNotes:'', teaType:'', teaNotes:'',
-  sweetenerType:'', sweetenerNotes:'', juiceType:'', juiceNotes:'',
-  waterType:'', waterBrand:'', mixersType:'', mixersBrand:'', softDrinkTypes:{},
+  milkType:'', coffeeTypes:{}, coffeeNotes:'', teaTypes:{}, teaNotes:'',
+  sweetenerTypes:{}, sweetenerNotes:'', juiceTypes:{}, juiceNotes:'',
+  waterType:'', waterBrand:'', mixersTypes:{}, mixersBrand:'', softDrinkTypes:{},
   medicalConditions:'', doctorContact:'',
   allergies:'',
   occasions: [ {id:uid(), type:'', date:'', who:'', notes:''} ],
@@ -174,7 +175,7 @@ const STATE = {
 };
 
 const INTEREST_OPTIONS = ['Archaeology & culture','Local arts & crafts','Sightseeing','Meeting local people',
-  'Swimming & snorkeling','Diving','Water skiing','Windsurfing / watersports','Fishing','Shopping','Dancing & night-life'];
+  'Swimming & snorkeling','Diving','Water skiing / watersports','Fishing','Shopping','Dancing & night-life'];
 const DIET_OPTIONS = ['Dairy-free','Wheat / gluten-free','Low cholesterol','Vegetarian','Vegan','Low sodium','Low fat','Diabetic / sugar-free','Halal','Kosher'];
 const CUISINE_OPTIONS = ['American','British','Chinese','French','Fusion','Indian','Italian','Japanese','Mexican','North American','Spanish','Thai'];
 const FISH_OPTIONS = ['Anchovies','Caviar','Clams','Cod','Crab','Eel','Haddock','Langoustine','Lobster','Mackerel',
@@ -314,6 +315,7 @@ function renderTravel(){
         <div class="field"><label class="field-label">Time</label><input type="time" data-f="departureTime" value="${esc(STATE.departureTime)}"></div>
       </div>
       <div class="field"><label class="field-label">Transport needed from yacht to airport? / other departure details</label><textarea data-f="departureTransport">${esc(STATE.departureTransport)}</textarea></div>
+      <div class="note-hint">Please note: airport/yacht transfers are at the client's expense and will be deducted from the APA.</div>
 
       <div class="subhead">Hotel before / after charter (if any)</div>
       <div class="row c3">
@@ -378,6 +380,7 @@ function renderPaceInterests(){
         </div>
       </div>
       <div class="field"><label class="field-label">Any specific sightseeing / excursions you'd like us to help arrange?</label><textarea data-f="sightseeingWishlist">${esc(STATE.sightseeingWishlist)}</textarea></div>
+      <div class="field"><label class="field-label">Any other specific equipment to buy, rent or have on board (with extra charge to the client)?</label><textarea data-f="equipmentRequests">${esc(STATE.equipmentRequests)}</textarea></div>
     </div>
   </div>`;
 }
@@ -417,13 +420,15 @@ function renderDining(){
         <div class="choice-group">
           ${['Buffet','BBQ','Informal','Formal','Light','Light lunch','Full lunch','Plate service'].map(o=>`<label class="choice ${s.lunchStyle.type.includes(o)?'checked':''}"><input type="checkbox" data-lunch-type="${esc(o)}" ${s.lunchStyle.type.includes(o)?'checked':''}>${esc(o)}</label>`).join('')}
         </div>
-        <div class="choice-group" style="margin-top:8px;">
-          ${['2-course','3-course','4-course',"Chef's tasting menu"].map(o=>`<label class="choice ${s.lunchStyle.type.includes(o)?'checked':''}"><input type="checkbox" data-lunch-type="${esc(o)}" ${s.lunchStyle.type.includes(o)?'checked':''}>${esc(o)}</label>`).join('')}
-        </div>
+        <div class="note-hint" style="margin-top:2px;">BBQ — only if available on board.</div>
         <div class="choice-group" style="margin-top:8px;">
           ${['Heavy','Light'].map(o=>`<label class="choice ${s.lunchStyle.weight===o?'checked':''}"><input type="radio" name="lunch-weight" value="${esc(o)}" ${s.lunchStyle.weight===o?'checked':''}>${esc(o)}</label>`).join('')}
           ${['Quickly served','Slowly, with time between courses'].map(o=>`<label class="choice ${s.lunchStyle.service===o?'checked':''}"><input type="radio" name="lunch-service" value="${esc(o)}" ${s.lunchStyle.service===o?'checked':''}>${esc(o)}</label>`).join('')}
         </div>
+      </div>
+      <div class="field">
+        <label class="field-label">Number of courses</label>
+        <div class="choice-group">${['2','3','4',"Chef's tasting menu"].map(o=>`<label class="choice ${s.lunchStyle.courses===o?'checked':''}"><input type="radio" name="lunch-courses" value="${esc(o)}" ${s.lunchStyle.courses===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
       </div>
       <div class="field"><label class="field-label">Additional comments about lunch</label><input type="text" data-f="lunch-comments" value="${esc(s.lunchStyle.comments)}"></div>
 
@@ -437,6 +442,7 @@ function renderDining(){
         <div class="choice-group">
           ${['Buffet','BBQ','Informal','Formal','Light'].map(o=>`<label class="choice ${s.dinnerStyle.style===o?'checked':''}"><input type="radio" name="dinner-style" value="${esc(o)}" ${s.dinnerStyle.style===o?'checked':''}>${esc(o)}</label>`).join('')}
         </div>
+        <div class="note-hint" style="margin-top:2px;">BBQ — only if available on board.</div>
       </div>
       <div class="row c2">
         <div class="field"><label class="field-label">Formal dinners?</label><div class="choice-group">${yesNo('dinnerStyle.formal', s.dinnerStyle.formal)}</div></div>
@@ -504,6 +510,7 @@ function renderDining(){
         <label class="field-label">OK for the chef to use mayonnaise / cream-based sauces?</label>
         <div class="choice-group">${yesNo('mayoCream', s.mayoCream)}</div>
       </div>
+      <div class="field"><label class="field-label">Additional info</label><textarea data-f="diningAdditionalInfo">${esc(s.diningAdditionalInfo)}</textarea></div>
     </div>
   </div>`;
 }
@@ -548,6 +555,7 @@ function renderSpecialDiets(){
           ${DIET_OPTIONS.map(o=>`<label class="choice ${STATE.specialDiets[o]?'checked':''}"><input type="checkbox" data-diet="${esc(o)}" ${STATE.specialDiets[o]?'checked':''}>${esc(o)}</label>`).join('')}
         </div>
       </div>
+      <div class="field"><label class="field-label">Please specify who in the group this applies to</label><input type="text" data-f="specialDietsWho" value="${esc(STATE.specialDietsWho)}"></div>
       ${STATE.specialDiets['Vegetarian'] ? `
       <div class="field">
         <label class="field-label">If vegetarian, do you eat:</label>
@@ -699,27 +707,27 @@ function renderWineBar(){
       <div class="field"><label class="field-label">Preferred water brand</label><input type="text" data-f="waterBrand" value="${esc(s.waterBrand)}"></div>
 
       <div class="field"><label class="field-label">Coffee</label>
-        <div class="choice-group">${['Decaf','Cappuccino','Espresso','Latte','American'].map(o=>`<label class="choice ${s.coffeeType===o?'checked':''}"><input type="radio" name="coffee-type" value="${esc(o)}" ${s.coffeeType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+        ${tagGroup(['Decaf','Cappuccino','Espresso','Latte','American'], s.coffeeTypes, 'coffeetype')}
       </div>
       <div class="field"><label class="field-label">Coffee — additional info</label><input type="text" data-f="coffeeNotes" value="${esc(s.coffeeNotes)}"></div>
 
       <div class="field"><label class="field-label">Tea</label>
-        <div class="choice-group">${['Earl Grey','English Breakfast','Herbal','Fruity','Iced'].map(o=>`<label class="choice ${s.teaType===o?'checked':''}"><input type="radio" name="tea-type" value="${esc(o)}" ${s.teaType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+        ${tagGroup(['Earl Grey','English Breakfast','Herbal','Fruity','Iced'], s.teaTypes, 'teatype')}
       </div>
       <div class="field"><label class="field-label">Tea — additional info</label><input type="text" data-f="teaNotes" value="${esc(s.teaNotes)}"></div>
 
       <div class="row c2">
         <div class="field"><label class="field-label">Sweetener</label>
-          <div class="choice-group">${['Refined','Natural','Brown sugar','Substitute'].map(o=>`<label class="choice ${s.sweetenerType===o?'checked':''}"><input type="radio" name="sweetener-type" value="${esc(o)}" ${s.sweetenerType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+          ${tagGroup(['Refined','Natural','Brown sugar','Substitute'], s.sweetenerTypes, 'sweetenertype')}
         </div>
         <div class="field"><label class="field-label">Mixers</label>
-          <div class="choice-group">${['Tonic','Club soda / soda'].map(o=>`<label class="choice ${s.mixersType===o?'checked':''}"><input type="radio" name="mixers-type" value="${esc(o)}" ${s.mixersType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+          ${tagGroup(['Tonic','Club soda / soda'], s.mixersTypes, 'mixerstype')}
         </div>
       </div>
       <div class="field"><label class="field-label">Preferred mixer brands</label><input type="text" data-f="mixersBrand" value="${esc(s.mixersBrand)}"></div>
 
       <div class="field"><label class="field-label">Juice</label>
-        <div class="choice-group">${['Orange','Pineapple','Grapefruit','Apple','Tomato'].map(o=>`<label class="choice ${s.juiceType===o?'checked':''}"><input type="radio" name="juice-type" value="${esc(o)}" ${s.juiceType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+        ${tagGroup(['Orange','Pineapple','Grapefruit','Apple','Tomato'], s.juiceTypes, 'juicetype')}
       </div>
       <div class="field"><label class="field-label">Juice — additional info</label><input type="text" data-f="juiceNotes" value="${esc(s.juiceNotes)}"></div>
 
@@ -769,7 +777,7 @@ function renderOccasions(){
 function renderFlowers(){
   return `
   <div class="card">
-    ${sectionHead(12,'Flowers','Initial flower arrangements are complimentary')}
+    ${sectionHead(12,'Flowers','Welcome flowers at the start of the charter are complimentary — any additional flowers are at the client\'s expense')}
     <div class="card-body">
       <div class="field"><label class="field-label">Flowers you'd like used (or specific flowers to avoid on board)</label><textarea data-f="flowersPreference">${esc(STATE.flowersPreference)}</textarea></div>
       <div class="field">
@@ -783,7 +791,7 @@ function renderFlowers(){
 function renderReading(){
   return `
   <div class="card">
-    ${sectionHead(13,'Reading Material')}
+    ${sectionHead(13,'Reading Material','Newspapers and magazines are at the client\'s expense')}
     <div class="card-body">
       <div class="field"><label class="field-label">Specific newspapers, magazines or reading material you'd like on board</label><input type="text" data-f="readingMaterial" value="${esc(STATE.readingMaterial)}"></div>
     </div>
@@ -863,6 +871,7 @@ function wireEvents(){
   }));
   app.querySelectorAll('input[name="lunch-weight"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.lunchStyle.weight = el.value; render(); }));
   app.querySelectorAll('input[name="lunch-service"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.lunchStyle.service = el.value; render(); }));
+  app.querySelectorAll('input[name="lunch-courses"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.lunchStyle.courses = el.value; render(); }));
   app.querySelectorAll('input[name="pm-tea"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.afternoonTea = el.value; render(); }));
   app.querySelectorAll('[data-yn]').forEach(el=>el.addEventListener('change', ()=>{
     const path = el.dataset.yn.split('.');
@@ -910,11 +919,11 @@ function wireEvents(){
   }));
   app.querySelectorAll('input[name="milk-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.milkType = el.value; render(); }));
   app.querySelectorAll('input[name="water-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.waterType = el.value; render(); }));
-  app.querySelectorAll('input[name="coffee-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.coffeeType = el.value; render(); }));
-  app.querySelectorAll('input[name="tea-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.teaType = el.value; render(); }));
-  app.querySelectorAll('input[name="sweetener-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.sweetenerType = el.value; render(); }));
-  app.querySelectorAll('input[name="mixers-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.mixersType = el.value; render(); }));
-  app.querySelectorAll('input[name="juice-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.juiceType = el.value; render(); }));
+  wireTagGroup('coffeetype', STATE.coffeeTypes);
+  wireTagGroup('teatype', STATE.teaTypes);
+  wireTagGroup('sweetenertype', STATE.sweetenerTypes);
+  wireTagGroup('mixerstype', STATE.mixersTypes);
+  wireTagGroup('juicetype', STATE.juiceTypes);
 
   app.querySelectorAll('input[name="flowers-freq"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.flowersFrequency = el.value; render(); }));
 
@@ -986,6 +995,7 @@ function hydrateStateFromPayload(p){
   STATE.pace = p.pace || '';
   STATE.interests = arrToMap(p.interests);
   STATE.sightseeingWishlist = p.sightseeing_wishlist || '';
+  STATE.equipmentRequests = p.equipment_requests || '';
 
   const d = p.dining || {};
   if(d.mealTimes) STATE.mealTimes = d.mealTimes;
@@ -1002,10 +1012,12 @@ function hydrateStateFromPayload(p){
   STATE.beefDoneness = d.beefDoneness || '';
   STATE.soup = d.soup || '';
   STATE.mayoCream = d.mayoCream || '';
+  STATE.diningAdditionalInfo = d.additionalInfo || '';
 
   STATE.foodGrid = withIds(p.food_grid, STATE.foodGrid).map(x=>({id:x.id, item:x.item, like:!!x.like, dislike:!!x.dislike, notes:x.notes||''}));
   STATE.specialDiets = arrToMap(p.special_diets);
   STATE.specialDietsOther = p.special_diets_other || '';
+  STATE.specialDietsWho = p.special_diets_who || '';
   if(p.vegetarian_eats) STATE.vegetarianEats = p.vegetarian_eats;
   STATE.cuisineStyle = p.cuisine_style || '';
   STATE.favoriteDishes = p.favorite_dishes || '';
@@ -1039,10 +1051,10 @@ function hydrateStateFromPayload(p){
   if(wp.byColor) STATE.wineByColor = wp.byColor;
   STATE.beers = wp.beers || '';
   const bev = wp.beverages || {};
-  STATE.milkType=bev.milkType||''; STATE.coffeeType=bev.coffeeType||''; STATE.coffeeNotes=bev.coffeeNotes||'';
-  STATE.teaType=bev.teaType||''; STATE.teaNotes=bev.teaNotes||''; STATE.sweetenerType=bev.sweetenerType||'';
-  STATE.juiceType=bev.juiceType||''; STATE.juiceNotes=bev.juiceNotes||''; STATE.waterType=bev.waterType||''; STATE.waterBrand=bev.waterBrand||'';
-  STATE.mixersType=bev.mixersType||''; STATE.mixersBrand=bev.mixersBrand||''; STATE.softDrinkTypes=arrToMap(bev.softDrinkTypes);
+  STATE.milkType=bev.milkType||''; STATE.coffeeTypes=arrToMap(bev.coffeeTypes); STATE.coffeeNotes=bev.coffeeNotes||'';
+  STATE.teaTypes=arrToMap(bev.teaTypes); STATE.teaNotes=bev.teaNotes||''; STATE.sweetenerTypes=arrToMap(bev.sweetenerTypes);
+  STATE.juiceTypes=arrToMap(bev.juiceTypes); STATE.juiceNotes=bev.juiceNotes||''; STATE.waterType=bev.waterType||''; STATE.waterBrand=bev.waterBrand||'';
+  STATE.mixersTypes=arrToMap(bev.mixersTypes); STATE.mixersBrand=bev.mixersBrand||''; STATE.softDrinkTypes=arrToMap(bev.softDrinkTypes);
 
   STATE.medicalConditions = p.medical_conditions || '';
   STATE.doctorContact = p.doctor_contact || '';
@@ -1083,6 +1095,7 @@ function handleSubmit(){
     pace: STATE.pace,
     interests: Object.keys(STATE.interests).filter(k=>STATE.interests[k]),
     sightseeing_wishlist: STATE.sightseeingWishlist,
+    equipment_requests: STATE.equipmentRequests,
     dining: {
       mealTimes: STATE.mealTimes,
       breakfast: STATE.breakfastStyle,
@@ -1097,11 +1110,13 @@ function handleSubmit(){
       cookingStyle: STATE.cookingStyle,
       beefDoneness: STATE.beefDoneness,
       soup: STATE.soup,
-      mayoCream: STATE.mayoCream
+      mayoCream: STATE.mayoCream,
+      additionalInfo: STATE.diningAdditionalInfo
     },
     food_grid: STATE.foodGrid.map(({id,...rest})=>rest),
     special_diets: Object.keys(STATE.specialDiets).filter(k=>STATE.specialDiets[k]),
     special_diets_other: STATE.specialDietsOther,
+    special_diets_who: STATE.specialDietsWho,
     vegetarian_eats: STATE.vegetarianEats,
     cuisine_style: STATE.cuisineStyle,
     favorite_dishes: STATE.favoriteDishes,
@@ -1134,12 +1149,12 @@ function handleSubmit(){
       beers: STATE.beers,
       beverages: {
         milkType: STATE.milkType,
-        coffeeType: STATE.coffeeType, coffeeNotes: STATE.coffeeNotes,
-        teaType: STATE.teaType, teaNotes: STATE.teaNotes,
-        sweetenerType: STATE.sweetenerType,
-        juiceType: STATE.juiceType, juiceNotes: STATE.juiceNotes,
+        coffeeTypes: Object.keys(STATE.coffeeTypes).filter(k=>STATE.coffeeTypes[k]), coffeeNotes: STATE.coffeeNotes,
+        teaTypes: Object.keys(STATE.teaTypes).filter(k=>STATE.teaTypes[k]), teaNotes: STATE.teaNotes,
+        sweetenerTypes: Object.keys(STATE.sweetenerTypes).filter(k=>STATE.sweetenerTypes[k]),
+        juiceTypes: Object.keys(STATE.juiceTypes).filter(k=>STATE.juiceTypes[k]), juiceNotes: STATE.juiceNotes,
         waterType: STATE.waterType, waterBrand: STATE.waterBrand,
-        mixersType: STATE.mixersType, mixersBrand: STATE.mixersBrand,
+        mixersTypes: Object.keys(STATE.mixersTypes).filter(k=>STATE.mixersTypes[k]), mixersBrand: STATE.mixersBrand,
         softDrinkTypes: Object.keys(STATE.softDrinkTypes).filter(k=>STATE.softDrinkTypes[k])
       }
     },
