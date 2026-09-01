@@ -100,6 +100,15 @@ function esc(s){
   return (s===undefined||s===null?'':String(s)).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 function uid(){ return Math.random().toString(36).slice(2)+Date.now().toString(36); }
+function tagGroup(options, stateObj, attr){
+  return `<div class="choice-group">${options.map(o=>`<label class="choice ${stateObj[o]?'checked':''}"><input type="checkbox" data-${attr}="${esc(o)}" ${stateObj[o]?'checked':''}>${esc(o)}</label>`).join('')}</div>`;
+}
+function wireTagGroup(attr, stateObj){
+  document.querySelectorAll(`[data-${attr}]`).forEach(el=>el.addEventListener('change', ()=>{
+    stateObj[el.dataset[attr]] = el.checked;
+    render();
+  }));
+}
 
 const STATE = {
   clientName: qs.get('client') || '',
@@ -115,9 +124,12 @@ const STATE = {
   pace: '', interests: {}, sightseeingWishlist:'',
   mealTimes:{breakfast:'', lunch:'', dinner:''},
   breakfastStyle:{type:'', weight:'', notes:''},
-  lunchStyle:{type:[], weight:'', service:''},
+  breakfastItems: {}, breakfastSpreads: {},
+  lunchStyle:{type:[], weight:'', service:'', comments:''},
   afternoonTea:'',
-  dinnerStyle:{formal:'', aperitifs:'', startersDesserts:'', cheeseBiscuits:'', service:'', courses:''},
+  dinnerStyle:{style:'', formal:'', aperitifs:'', startersDesserts:'', cheeseBiscuits:'', service:'', courses:'', comments:''},
+  canapes:{beforeLunch:false, beforeDinner:false, light:false, comments:''},
+  snacks:{midMorningSweet:false, midMorningSavoury:false, afternoonSweet:false, afternoonSavoury:false, lateEvening:false, other:'', favourites:''},
   dineAshore:'', cookingStyle:[], beefDoneness:'', soup:'', mayoCream:'',
   foodGrid: [
     'Beef','Pork','Lamb','Veal','Poultry / Chicken','Turkey','Duck','Game','Liver',
@@ -125,12 +137,21 @@ const STATE = {
     'Cheese','Desserts / Cakes','Snacks & Cocktail Food'
   ].map(item=>({id:uid(), item, like:false, dislike:false, notes:''})),
   specialDiets: {}, specialDietsOther:'', vegetarianEats:{eggs:false,cheese:false,fish:false},
-  cuisineStyle:'', favoriteDishes:'', ingredientsAvoid:'',
+  cuisineTags: {}, cuisineStyle:'', cuisineDislike:'', favoriteDishes:'', ingredientsAvoid:'',
+  fishTypes: {}, fishDislike:'', meatFavorites:'',
+  breadTypes: {}, saladTypes: {},
+  soupPreference:'', cheesePreference:'', vegetablesPreference:'',
+  fruitTypes: {}, fruitOther:'', dessertPreference:'',
   wines: [ {id:uid(), country:'', name:'', qty:''} ],
+  wineStyleTags: {}, sampleWineList:false,
+  wineByColor:{red:{price:'',qty:''}, white:{price:'',qty:''}, rose:{price:'',qty:''}, champagne:{price:'',qty:''}},
   champagne:{nonVintage:'', vintage:'', qty:''},
   maxPrice: [ {id:uid(), type:'', price:''} ],
-  spirits: [ {id:uid(), type:'', brand:'', qty:''} ],
-  softDrinks:'', cocktails:'', teaCoffee:'',
+  spirits: [ {id:uid(), type:'', brand:'', qty:'', priceRange:''} ],
+  softDrinks:'', cocktails:'', beers:'',
+  milkType:'', coffeeType:'', coffeeNotes:'', teaType:'', teaNotes:'',
+  sweetenerType:'', sweetenerNotes:'', juiceType:'', juiceNotes:'',
+  waterType:'', waterBrand:'', mixersType:'', mixersBrand:'', softDrinkTypes:{},
   medicalConditions:'', doctorContact:'',
   allergies:'',
   occasions: [ {id:uid(), type:'', date:'', who:'', notes:''} ],
@@ -144,6 +165,14 @@ const STATE = {
 const INTEREST_OPTIONS = ['Archaeology & culture','Local arts & crafts','Sightseeing','Meeting local people',
   'Swimming & snorkeling','Diving','Water skiing','Windsurfing / watersports','Fishing','Shopping','Dancing & night-life'];
 const DIET_OPTIONS = ['Dairy-free','Wheat / gluten-free','Low cholesterol','Vegetarian','Vegan','Low sodium','Low fat','Diabetic / sugar-free','Halal','Kosher'];
+const CUISINE_OPTIONS = ['American','British','Chinese','French','Fusion','Indian','Italian','Japanese','Mexican','North American','Spanish','Thai'];
+const FISH_OPTIONS = ['Anchovies','Caviar','Clams','Cod','Crab','Eel','Haddock','Langoustine','Lobster','Mackerel',
+  'Mussels','Oysters','Salmon','Sardines','Scallops','Sea Bass','Sea Bream','Shrimp','Snails','Sole','Squid','Trout','Tuna','Turbot','Sashimi'];
+const BREAD_OPTIONS = ['Bagel','Baguette','Black','Breadsticks','Brioche','Brown','Cereal / Granary','Ciabatta','Focaccia','Pita','White'];
+const SALAD_OPTIONS = ['Caprese','Caesar','Coleslaw','Greek','Mixed Leaf','Niçoise','Pasta','Potato','Russian','Seafood'];
+const FRUIT_OPTIONS = ['Apples','Apricots','Bananas','Cherries','Grapes','Grapefruit','Kiwis','Lemon/Lime','Mandarins','Mangoes',
+  'Melon','Oranges','Peaches','Pears','Plums','Pineapple','Raspberries','Strawberries','Mixed Berries','Watermelon'];
+const WINE_STYLE_OPTIONS = ['French','Italian','Spanish','German','Californian','Australian','New Zealand','South American'];
 
 let submitted = false;
 let submitting = false;
@@ -358,17 +387,29 @@ function renderDining(){
         </div>
       </div>
       <div class="field"><label class="field-label">Any breakfast requirements?</label><textarea data-f="bf-notes">${esc(s.breakfastStyle.notes)}</textarea></div>
+      <div class="field">
+        <label class="field-label">Breakfast items</label>
+        <div class="choice-group">${['Full English','Continental','American','Cereals','Fresh fruit juices','Fruit','Kippers','Porridge','Yogurt'].map(o=>`<label class="choice ${s.breakfastItems[o]?'checked':''}"><input type="checkbox" data-bfitem="${esc(o)}" ${s.breakfastItems[o]?'checked':''}>${esc(o)}</label>`).join('')}</div>
+      </div>
+      <div class="field">
+        <label class="field-label">Spreads, oils & jams</label>
+        <div class="choice-group">${['Butter — salted','Butter — unsalted','Low-fat spreads','Jams/marmalades'].map(o=>`<label class="choice ${s.breakfastSpreads[o]?'checked':''}"><input type="checkbox" data-bfspread="${esc(o)}" ${s.breakfastSpreads[o]?'checked':''}>${esc(o)}</label>`).join('')}</div>
+      </div>
 
       <div class="subhead">Lunch</div>
       <div class="field">
         <div class="choice-group">
-          ${['Light lunch','Full lunch','Buffet','Plate service'].map(o=>`<label class="choice ${s.lunchStyle.type.includes(o)?'checked':''}"><input type="checkbox" data-lunch-type="${esc(o)}" ${s.lunchStyle.type.includes(o)?'checked':''}>${esc(o)}</label>`).join('')}
+          ${['Buffet','BBQ','Informal','Formal','Light','Light lunch','Full lunch','Plate service'].map(o=>`<label class="choice ${s.lunchStyle.type.includes(o)?'checked':''}"><input type="checkbox" data-lunch-type="${esc(o)}" ${s.lunchStyle.type.includes(o)?'checked':''}>${esc(o)}</label>`).join('')}
+        </div>
+        <div class="choice-group" style="margin-top:8px;">
+          ${['2-course','3-course','4-course',"Chef's tasting menu"].map(o=>`<label class="choice ${s.lunchStyle.type.includes(o)?'checked':''}"><input type="checkbox" data-lunch-type="${esc(o)}" ${s.lunchStyle.type.includes(o)?'checked':''}>${esc(o)}</label>`).join('')}
         </div>
         <div class="choice-group" style="margin-top:8px;">
           ${['Heavy','Light'].map(o=>`<label class="choice ${s.lunchStyle.weight===o?'checked':''}"><input type="radio" name="lunch-weight" value="${esc(o)}" ${s.lunchStyle.weight===o?'checked':''}>${esc(o)}</label>`).join('')}
           ${['Quickly served','Slowly, with time between courses'].map(o=>`<label class="choice ${s.lunchStyle.service===o?'checked':''}"><input type="radio" name="lunch-service" value="${esc(o)}" ${s.lunchStyle.service===o?'checked':''}>${esc(o)}</label>`).join('')}
         </div>
       </div>
+      <div class="field"><label class="field-label">Additional comments about lunch</label><input type="text" data-f="lunch-comments" value="${esc(s.lunchStyle.comments)}"></div>
 
       <div class="subhead">Afternoon Tea</div>
       <div class="choice-group">
@@ -376,9 +417,14 @@ function renderDining(){
       </div>
 
       <div class="subhead">Dinner</div>
+      <div class="field">
+        <div class="choice-group">
+          ${['Buffet','BBQ','Informal','Formal','Light'].map(o=>`<label class="choice ${s.dinnerStyle.style===o?'checked':''}"><input type="radio" name="dinner-style" value="${esc(o)}" ${s.dinnerStyle.style===o?'checked':''}>${esc(o)}</label>`).join('')}
+        </div>
+      </div>
       <div class="row c2">
         <div class="field"><label class="field-label">Formal dinners?</label><div class="choice-group">${yesNo('dinnerStyle.formal', s.dinnerStyle.formal)}</div></div>
-        <div class="field"><label class="field-label">Aperitifs & canapés before dinner?</label><div class="choice-group">${yesNo('dinnerStyle.aperitifs', s.dinnerStyle.aperitifs)}</div></div>
+        <div class="field"><label class="field-label">Aperitifs before dinner?</label><div class="choice-group">${yesNo('dinnerStyle.aperitifs', s.dinnerStyle.aperitifs)}</div></div>
         <div class="field"><label class="field-label">Starters & desserts?</label><div class="choice-group">${yesNo('dinnerStyle.startersDesserts', s.dinnerStyle.startersDesserts)}</div></div>
         <div class="field"><label class="field-label">Cheese & biscuits?</label><div class="choice-group">${yesNo('dinnerStyle.cheeseBiscuits', s.dinnerStyle.cheeseBiscuits)}</div></div>
       </div>
@@ -388,7 +434,35 @@ function renderDining(){
       </div>
       <div class="field">
         <label class="field-label">Number of courses</label>
-        <div class="choice-group">${['3','4','5'].map(o=>`<label class="choice ${s.dinnerStyle.courses===o?'checked':''}"><input type="radio" name="dinner-courses" value="${esc(o)}" ${s.dinnerStyle.courses===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+        <div class="choice-group">${['2','3','4','5',"Chef's tasting menu"].map(o=>`<label class="choice ${s.dinnerStyle.courses===o?'checked':''}"><input type="radio" name="dinner-courses" value="${esc(o)}" ${s.dinnerStyle.courses===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+      </div>
+      <div class="field"><label class="field-label">Additional comments about dinner</label><input type="text" data-f="dinner-comments" value="${esc(s.dinnerStyle.comments)}"></div>
+
+      <div class="subhead">Canapés</div>
+      <div class="choice-group">
+        <label class="choice ${s.canapes.beforeLunch?'checked':''}"><input type="checkbox" data-canape="beforeLunch" ${s.canapes.beforeLunch?'checked':''}>Before lunch</label>
+        <label class="choice ${s.canapes.beforeDinner?'checked':''}"><input type="checkbox" data-canape="beforeDinner" ${s.canapes.beforeDinner?'checked':''}>Before dinner</label>
+        <label class="choice ${s.canapes.light?'checked':''}"><input type="checkbox" data-canape="light" ${s.canapes.light?'checked':''}>Light</label>
+      </div>
+      <div class="field"><label class="field-label">Canapé comments</label><input type="text" data-f="canapes-comments" value="${esc(s.canapes.comments)}"></div>
+
+      <div class="subhead">Snacks</div>
+      <div class="row c2">
+        <div class="field"><label class="field-label">Mid-morning</label><div class="choice-group">
+          <label class="choice ${s.snacks.midMorningSweet?'checked':''}"><input type="checkbox" data-snack="midMorningSweet" ${s.snacks.midMorningSweet?'checked':''}>Sweet</label>
+          <label class="choice ${s.snacks.midMorningSavoury?'checked':''}"><input type="checkbox" data-snack="midMorningSavoury" ${s.snacks.midMorningSavoury?'checked':''}>Savoury</label>
+        </div></div>
+        <div class="field"><label class="field-label">Afternoon</label><div class="choice-group">
+          <label class="choice ${s.snacks.afternoonSweet?'checked':''}"><input type="checkbox" data-snack="afternoonSweet" ${s.snacks.afternoonSweet?'checked':''}>Sweet</label>
+          <label class="choice ${s.snacks.afternoonSavoury?'checked':''}"><input type="checkbox" data-snack="afternoonSavoury" ${s.snacks.afternoonSavoury?'checked':''}>Savoury</label>
+        </div></div>
+      </div>
+      <div class="field"><label class="field-label">Late evening / other</label>
+        <div class="choice-group"><label class="choice ${s.snacks.lateEvening?'checked':''}"><input type="checkbox" data-snack="lateEvening" ${s.snacks.lateEvening?'checked':''}>Late evening snack</label></div>
+      </div>
+      <div class="row c2">
+        <div class="field"><label class="field-label">Other</label><input type="text" data-f="snacks-other" value="${esc(s.snacks.other)}"></div>
+        <div class="field"><label class="field-label">Favourite snacks</label><input type="text" data-f="snacks-favourites" value="${esc(s.snacks.favourites)}"></div>
       </div>
 
       <div class="subhead">General</div>
@@ -398,7 +472,7 @@ function renderDining(){
       </div>
       <div class="field">
         <label class="field-label">Preferred cooking style</label>
-        <div class="choice-group">${['Baked','Fried','Grilled','Steamed'].map(o=>`<label class="choice ${s.cookingStyle.includes(o)?'checked':''}"><input type="checkbox" data-cooking="${esc(o)}" ${s.cookingStyle.includes(o)?'checked':''}>${esc(o)}</label>`).join('')}</div>
+        <div class="choice-group">${['Baked','BBQ','Fried','Grilled','Spicy','Steamed','Stir-Fried'].map(o=>`<label class="choice ${s.cookingStyle.includes(o)?'checked':''}"><input type="checkbox" data-cooking="${esc(o)}" ${s.cookingStyle.includes(o)?'checked':''}>${esc(o)}</label>`).join('')}</div>
       </div>
       <div class="row c2">
         <div class="field">
@@ -477,19 +551,67 @@ function renderCuisine(){
   <div class="card">
     ${sectionHead(8,'Cuisine & Ingredients')}
     <div class="card-body">
-      <div class="field"><label class="field-label">Preferred cuisine style (e.g. Italian, Japanese, French, Greek…)</label><input type="text" data-f="cuisineStyle" value="${esc(STATE.cuisineStyle)}"></div>
-      <div class="field"><label class="field-label">Favourite ingredients or dishes</label><textarea data-f="favoriteDishes">${esc(STATE.favoriteDishes)}</textarea></div>
+      <div class="subhead">Cuisine</div>
+      <div class="field"><label class="field-label">Which cuisines do you prefer?</label>${tagGroup(CUISINE_OPTIONS, STATE.cuisineTags, 'cuisinetag')}</div>
+      <div class="field"><label class="field-label">Any other cuisine, or a style you dislike (e.g. garlic)</label><input type="text" data-f="cuisineStyle" placeholder="Other cuisine…" value="${esc(STATE.cuisineStyle)}"></div>
+      <div class="field"><label class="field-label">Any style/element you dislike (e.g. garlic)</label><input type="text" data-f="cuisineDislike" value="${esc(STATE.cuisineDislike)}"></div>
+
+      <div class="subhead">Fish & Seafood</div>
+      <div class="field"><label class="field-label">Which fish/seafood do you prefer?</label>${tagGroup(FISH_OPTIONS, STATE.fishTypes, 'fishtype')}</div>
+      <div class="field"><label class="field-label">Any fish/seafood you dislike?</label><input type="text" data-f="fishDislike" value="${esc(STATE.fishDislike)}"></div>
+
+      <div class="subhead">Meat, Bread & Salads</div>
+      <div class="field"><label class="field-label">Which types of meat do you like best?</label><input type="text" data-f="meatFavorites" value="${esc(STATE.meatFavorites)}"></div>
+      <div class="field"><label class="field-label">Which types of bread do you like?</label>${tagGroup(BREAD_OPTIONS, STATE.breadTypes, 'breadtype')}</div>
+      <div class="field"><label class="field-label">Which types of salad do you like?</label>${tagGroup(SALAD_OPTIONS, STATE.saladTypes, 'saladtype')}</div>
+
+      <div class="subhead">Soup, Cheese & Vegetables</div>
+      <div class="row c2">
+        <div class="field"><label class="field-label">Favourite soups</label><input type="text" data-f="soupPreference" value="${esc(STATE.soupPreference)}"></div>
+        <div class="field"><label class="field-label">Favourite cheeses</label><input type="text" data-f="cheesePreference" value="${esc(STATE.cheesePreference)}"></div>
+      </div>
+      <div class="field"><label class="field-label">Favourite vegetables & how you like them cooked</label><input type="text" data-f="vegetablesPreference" value="${esc(STATE.vegetablesPreference)}"></div>
+
+      <div class="subhead">Fruit & Dessert</div>
+      <div class="field"><label class="field-label">Which fruits do you like?</label>${tagGroup(FRUIT_OPTIONS, STATE.fruitTypes, 'fruittype')}</div>
+      <div class="row c2">
+        <div class="field"><label class="field-label">Any other fruit not listed</label><input type="text" data-f="fruitOther" value="${esc(STATE.fruitOther)}"></div>
+        <div class="field"><label class="field-label">Favourite desserts</label><input type="text" data-f="dessertPreference" value="${esc(STATE.dessertPreference)}"></div>
+      </div>
+
+      <div class="subhead">General</div>
+      <div class="field"><label class="field-label">Favourite ingredients or dishes overall</label><textarea data-f="favoriteDishes">${esc(STATE.favoriteDishes)}</textarea></div>
       <div class="field"><label class="field-label">Ingredients, spices or cooking styles to avoid</label><textarea data-f="ingredientsAvoid">${esc(STATE.ingredientsAvoid)}</textarea></div>
     </div>
   </div>`;
 }
 
 function renderWineBar(){
+  const s = STATE;
+  const colorField = (color, label) => `
+    <div class="field"><label class="field-label">${esc(label)}</label>
+      <div style="display:flex;gap:6px;">
+        <input type="text" placeholder="Price/btl" data-wbc="${color}" data-wbf="price" value="${esc(s.wineByColor[color].price)}">
+        <input type="number" min="0" placeholder="Qty" data-wbc="${color}" data-wbf="qty" value="${esc(s.wineByColor[color].qty)}">
+      </div>
+    </div>`;
   return `
   <div class="card">
     ${sectionHead(9,'Wine & Bar','Every effort will be made to source your preferred brands, availability permitting')}
     <div class="card-body">
-      <div class="subhead">Wine</div>
+      <div class="subhead">Wine Style</div>
+      <div class="field"><label class="field-label">In general, do you prefer wines from:</label>${tagGroup(WINE_STYLE_OPTIONS, s.wineStyleTags, 'winestyle')}</div>
+      <div class="field"><label class="choice ${s.sampleWineList?'checked':''}" style="display:inline-flex;"><input type="checkbox" id="sample-wine-list" ${s.sampleWineList?'checked':''}> Would prefer to choose from a sample wine list</label></div>
+
+      <div class="subhead">Price & Quantity per Bottle</div>
+      <div class="row c4">
+        ${colorField('red','Red Wine')}
+        ${colorField('white','White Wine')}
+        ${colorField('rose','Rosé Wine')}
+        ${colorField('champagne','Champagne')}
+      </div>
+
+      <div class="subhead">Specific Wines</div>
       <div class="table-scroll">
       <table class="grid">
         <thead><tr><th>Country</th><th>Name / Style</th><th style="width:110px;">Qty (bottles)</th><th></th></tr></thead>
@@ -506,14 +628,14 @@ function renderWineBar(){
       </div>
       <button type="button" class="add-row-btn" data-add-row="wines">+ Add wine</button>
 
-      <div class="subhead">Champagne</div>
+      <div class="subhead">Champagne (specific)</div>
       <div class="row c3">
         <div class="field"><label class="field-label">Non-vintage</label><input type="text" data-cf="nonVintage" value="${esc(STATE.champagne.nonVintage)}"></div>
         <div class="field"><label class="field-label">Vintage</label><input type="text" data-cf="vintage" value="${esc(STATE.champagne.vintage)}"></div>
         <div class="field"><label class="field-label">Quantity (bottles)</label><input type="number" min="0" data-cf="qty" value="${esc(STATE.champagne.qty)}"></div>
       </div>
 
-      <div class="subhead">Maximum price per bottle</div>
+      <div class="subhead">Maximum Price per Bottle (other categories)</div>
       <div class="table-scroll">
       <table class="grid">
         <thead><tr><th>Type</th><th style="width:140px;">Max price (€)</th><th></th></tr></thead>
@@ -529,27 +651,64 @@ function renderWineBar(){
       </div>
       <button type="button" class="add-row-btn" data-add-row="maxPrice">+ Add</button>
 
-      <div class="subhead">Spirits, Liqueurs & Beer</div>
+      <div class="subhead">Spirits & Liqueurs</div>
       <div class="table-scroll">
       <table class="grid">
-        <thead><tr><th>Type</th><th>Brand</th><th style="width:110px;">Qty</th><th></th></tr></thead>
+        <thead><tr><th>Type</th><th>Brand</th><th style="width:90px;">Qty</th><th style="width:120px;">Price range/btl</th><th></th></tr></thead>
         <tbody>
           ${STATE.spirits.map(sp=>`
           <tr data-row="spirits" data-id="${sp.id}">
-            <td><input type="text" data-spf="type" value="${esc(sp.type)}" placeholder="e.g. Gin, Vodka, Beer…"></td>
+            <td><input type="text" data-spf="type" value="${esc(sp.type)}" placeholder="e.g. Whisky, Gin, Vodka, Tequila, Rum…"></td>
             <td><input type="text" data-spf="brand" value="${esc(sp.brand)}"></td>
             <td><input type="number" min="0" data-spf="qty" value="${esc(sp.qty)}"></td>
+            <td><input type="text" data-spf="priceRange" value="${esc(sp.priceRange)}"></td>
             <td>${STATE.spirits.length>1?`<button type="button" class="row-remove" data-remove-row="spirits" data-remove-id="${sp.id}">×</button>`:''}</td>
           </tr>`).join('')}
         </tbody>
       </table>
       </div>
       <button type="button" class="add-row-btn" data-add-row="spirits">+ Add</button>
+      <div class="field" style="margin-top:12px;"><label class="field-label">Preferred beers / lagers</label><input type="text" data-f="beers" value="${esc(s.beers)}"></div>
+      <div class="field"><label class="field-label">Any particular cocktails you'd like?</label><input type="text" data-f="cocktails" value="${esc(s.cocktails)}"></div>
 
-      <div class="subhead">Other beverages</div>
-      <div class="field"><label class="field-label">Soft drinks</label><input type="text" data-f="softDrinks" value="${esc(STATE.softDrinks)}"></div>
-      <div class="field"><label class="field-label">Cocktails</label><input type="text" data-f="cocktails" value="${esc(STATE.cocktails)}"></div>
-      <div class="field"><label class="field-label">Tea & coffee preferences</label><input type="text" data-f="teaCoffee" value="${esc(STATE.teaCoffee)}"></div>
+      <div class="subhead">Non-Alcoholic Beverages</div>
+      <div class="row c2">
+        <div class="field"><label class="field-label">Milk</label>
+          <div class="choice-group">${['Whole','Semi-skimmed','Skimmed','Soya','Rice'].map(o=>`<label class="choice ${s.milkType===o?'checked':''}"><input type="radio" name="milk-type" value="${esc(o)}" ${s.milkType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+        </div>
+        <div class="field"><label class="field-label">Water</label>
+          <div class="choice-group">${['Sparkling','Still','Both'].map(o=>`<label class="choice ${s.waterType===o?'checked':''}"><input type="radio" name="water-type" value="${esc(o)}" ${s.waterType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+        </div>
+      </div>
+      <div class="field"><label class="field-label">Preferred water brand</label><input type="text" data-f="waterBrand" value="${esc(s.waterBrand)}"></div>
+
+      <div class="field"><label class="field-label">Coffee</label>
+        <div class="choice-group">${['Decaf','Cappuccino','Espresso','Latte','American'].map(o=>`<label class="choice ${s.coffeeType===o?'checked':''}"><input type="radio" name="coffee-type" value="${esc(o)}" ${s.coffeeType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+      </div>
+      <div class="field"><label class="field-label">Coffee — additional info</label><input type="text" data-f="coffeeNotes" value="${esc(s.coffeeNotes)}"></div>
+
+      <div class="field"><label class="field-label">Tea</label>
+        <div class="choice-group">${['Earl Grey','English Breakfast','Herbal','Fruity','Iced'].map(o=>`<label class="choice ${s.teaType===o?'checked':''}"><input type="radio" name="tea-type" value="${esc(o)}" ${s.teaType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+      </div>
+      <div class="field"><label class="field-label">Tea — additional info</label><input type="text" data-f="teaNotes" value="${esc(s.teaNotes)}"></div>
+
+      <div class="row c2">
+        <div class="field"><label class="field-label">Sweetener</label>
+          <div class="choice-group">${['Refined','Natural','Brown sugar','Substitute'].map(o=>`<label class="choice ${s.sweetenerType===o?'checked':''}"><input type="radio" name="sweetener-type" value="${esc(o)}" ${s.sweetenerType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+        </div>
+        <div class="field"><label class="field-label">Mixers</label>
+          <div class="choice-group">${['Tonic','Club soda / soda'].map(o=>`<label class="choice ${s.mixersType===o?'checked':''}"><input type="radio" name="mixers-type" value="${esc(o)}" ${s.mixersType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+        </div>
+      </div>
+      <div class="field"><label class="field-label">Preferred mixer brands</label><input type="text" data-f="mixersBrand" value="${esc(s.mixersBrand)}"></div>
+
+      <div class="field"><label class="field-label">Juice</label>
+        <div class="choice-group">${['Orange','Pineapple','Grapefruit','Apple','Tomato'].map(o=>`<label class="choice ${s.juiceType===o?'checked':''}"><input type="radio" name="juice-type" value="${esc(o)}" ${s.juiceType===o?'checked':''}>${esc(o)}</label>`).join('')}</div>
+      </div>
+      <div class="field"><label class="field-label">Juice — additional info</label><input type="text" data-f="juiceNotes" value="${esc(s.juiceNotes)}"></div>
+
+      <div class="field"><label class="field-label">Soft drinks</label>${tagGroup(['Coke','Diet Coke','Sprite','Ginger Ale','Lemonade','7UP'], s.softDrinkTypes, 'softdrinktype')}</div>
+      <div class="field"><label class="field-label">Soft drinks — quantities / preferred brands</label><input type="text" data-f="softDrinks" value="${esc(s.softDrinks)}"></div>
     </div>
   </div>`;
 }
@@ -657,7 +816,15 @@ function wireEvents(){
   app.querySelectorAll('[data-f]').forEach(el=>{
     el.addEventListener(el.tagName==='TEXTAREA' || el.type==='text' || el.type==='email' || el.type==='tel' ? 'input' : 'change', ()=>{
       const key = el.dataset.f;
-      if(key==='bf-notes'){ STATE.breakfastStyle.notes = el.value; return; }
+      const nestedMap = {
+        'bf-notes': ()=>{ STATE.breakfastStyle.notes = el.value; },
+        'lunch-comments': ()=>{ STATE.lunchStyle.comments = el.value; },
+        'dinner-comments': ()=>{ STATE.dinnerStyle.comments = el.value; },
+        'canapes-comments': ()=>{ STATE.canapes.comments = el.value; },
+        'snacks-other': ()=>{ STATE.snacks.other = el.value; },
+        'snacks-favourites': ()=>{ STATE.snacks.favourites = el.value; }
+      };
+      if(nestedMap[key]){ nestedMap[key](); return; }
       STATE[key] = el.value;
     });
   });
@@ -666,6 +833,11 @@ function wireEvents(){
   app.querySelectorAll('[data-interest]').forEach(el=>el.addEventListener('change', ()=>{ STATE.interests[el.dataset.interest] = el.checked; render(); }));
   app.querySelectorAll('input[name="bf-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.breakfastStyle.type = el.value; render(); }));
   app.querySelectorAll('input[name="bf-weight"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.breakfastStyle.weight = el.value; render(); }));
+  app.querySelectorAll('[data-bfitem]').forEach(el=>el.addEventListener('change', ()=>{ STATE.breakfastItems[el.dataset.bfitem] = el.checked; render(); }));
+  app.querySelectorAll('[data-bfspread]').forEach(el=>el.addEventListener('change', ()=>{ STATE.breakfastSpreads[el.dataset.bfspread] = el.checked; render(); }));
+  app.querySelectorAll('input[name="dinner-style"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.dinnerStyle.style = el.value; render(); }));
+  app.querySelectorAll('[data-canape]').forEach(el=>el.addEventListener('change', ()=>{ STATE.canapes[el.dataset.canape] = el.checked; render(); }));
+  app.querySelectorAll('[data-snack]').forEach(el=>el.addEventListener('change', ()=>{ STATE.snacks[el.dataset.snack] = el.checked; render(); }));
   app.querySelectorAll('[data-lunch-type]').forEach(el=>el.addEventListener('change', ()=>{
     const v = el.dataset.lunchType;
     const idx = STATE.lunchStyle.type.indexOf(v);
@@ -707,6 +879,26 @@ function wireEvents(){
 
   app.querySelectorAll('[data-diet]').forEach(el=>el.addEventListener('change', ()=>{ STATE.specialDiets[el.dataset.diet] = el.checked; render(); }));
   app.querySelectorAll('[data-veg]').forEach(el=>el.addEventListener('change', ()=>{ STATE.vegetarianEats[el.dataset.veg] = el.checked; }));
+  wireTagGroup('cuisinetag', STATE.cuisineTags);
+  wireTagGroup('fishtype', STATE.fishTypes);
+  wireTagGroup('breadtype', STATE.breadTypes);
+  wireTagGroup('saladtype', STATE.saladTypes);
+  wireTagGroup('fruittype', STATE.fruitTypes);
+  wireTagGroup('winestyle', STATE.wineStyleTags);
+  wireTagGroup('softdrinktype', STATE.softDrinkTypes);
+
+  const sampleWineListEl = document.getElementById('sample-wine-list');
+  if(sampleWineListEl) sampleWineListEl.addEventListener('change', ()=>{ STATE.sampleWineList = sampleWineListEl.checked; });
+  app.querySelectorAll('[data-wbc]').forEach(el=>el.addEventListener('input', ()=>{
+    STATE.wineByColor[el.dataset.wbc][el.dataset.wbf] = el.value;
+  }));
+  app.querySelectorAll('input[name="milk-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.milkType = el.value; render(); }));
+  app.querySelectorAll('input[name="water-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.waterType = el.value; render(); }));
+  app.querySelectorAll('input[name="coffee-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.coffeeType = el.value; render(); }));
+  app.querySelectorAll('input[name="tea-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.teaType = el.value; render(); }));
+  app.querySelectorAll('input[name="sweetener-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.sweetenerType = el.value; render(); }));
+  app.querySelectorAll('input[name="mixers-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.mixersType = el.value; render(); }));
+  app.querySelectorAll('input[name="juice-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.juiceType = el.value; render(); }));
 
   app.querySelectorAll('input[name="flowers-freq"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.flowersFrequency = el.value; render(); }));
 
@@ -785,9 +977,13 @@ function handleSubmit(){
     dining: {
       mealTimes: STATE.mealTimes,
       breakfast: STATE.breakfastStyle,
+      breakfastItems: Object.keys(STATE.breakfastItems).filter(k=>STATE.breakfastItems[k]),
+      breakfastSpreads: Object.keys(STATE.breakfastSpreads).filter(k=>STATE.breakfastSpreads[k]),
       lunch: STATE.lunchStyle,
       afternoonTea: STATE.afternoonTea,
       dinner: STATE.dinnerStyle,
+      canapes: STATE.canapes,
+      snacks: STATE.snacks,
       dineAshore: STATE.dineAshore,
       cookingStyle: STATE.cookingStyle,
       beefDoneness: STATE.beefDoneness,
@@ -801,13 +997,43 @@ function handleSubmit(){
     cuisine_style: STATE.cuisineStyle,
     favorite_dishes: STATE.favoriteDishes,
     ingredients_avoid: STATE.ingredientsAvoid,
+    food_detail: {
+      cuisineTags: Object.keys(STATE.cuisineTags).filter(k=>STATE.cuisineTags[k]),
+      cuisineDislike: STATE.cuisineDislike,
+      fishTypes: Object.keys(STATE.fishTypes).filter(k=>STATE.fishTypes[k]),
+      fishDislike: STATE.fishDislike,
+      meatFavorites: STATE.meatFavorites,
+      breadTypes: Object.keys(STATE.breadTypes).filter(k=>STATE.breadTypes[k]),
+      saladTypes: Object.keys(STATE.saladTypes).filter(k=>STATE.saladTypes[k]),
+      soupPreference: STATE.soupPreference,
+      cheesePreference: STATE.cheesePreference,
+      vegetablesPreference: STATE.vegetablesPreference,
+      fruitTypes: Object.keys(STATE.fruitTypes).filter(k=>STATE.fruitTypes[k]),
+      fruitOther: STATE.fruitOther,
+      dessertPreference: STATE.dessertPreference
+    },
     wines: STATE.wines.map(({id,...rest})=>rest),
     champagne: STATE.champagne,
     max_price_per_bottle: STATE.maxPrice.map(({id,...rest})=>rest),
     spirits: STATE.spirits.map(({id,...rest})=>rest),
     soft_drinks: STATE.softDrinks,
     cocktails: STATE.cocktails,
-    tea_coffee: STATE.teaCoffee,
+    wine_preferences: {
+      styleTags: Object.keys(STATE.wineStyleTags).filter(k=>STATE.wineStyleTags[k]),
+      sampleWineList: STATE.sampleWineList,
+      byColor: STATE.wineByColor,
+      beers: STATE.beers,
+      beverages: {
+        milkType: STATE.milkType,
+        coffeeType: STATE.coffeeType, coffeeNotes: STATE.coffeeNotes,
+        teaType: STATE.teaType, teaNotes: STATE.teaNotes,
+        sweetenerType: STATE.sweetenerType,
+        juiceType: STATE.juiceType, juiceNotes: STATE.juiceNotes,
+        waterType: STATE.waterType, waterBrand: STATE.waterBrand,
+        mixersType: STATE.mixersType, mixersBrand: STATE.mixersBrand,
+        softDrinkTypes: Object.keys(STATE.softDrinkTypes).filter(k=>STATE.softDrinkTypes[k])
+      }
+    },
     medical_conditions: STATE.medicalConditions,
     doctor_contact: STATE.doctorContact,
     allergies: STATE.allergies,
