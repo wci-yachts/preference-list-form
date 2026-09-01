@@ -20,10 +20,10 @@
     background:var(--paper-dim); color:var(--ink); line-height:1.45;
   }
   .wrap{max-width:760px;margin:0 auto;padding:0 0 60px;}
-  .brand-header{background:var(--accent);color:#fff;padding:28px 24px;text-align:center;}
+  .brand-header{background:var(--paper);color:var(--accent);padding:28px 24px;text-align:center;}
   .brand-header img{max-width:280px;width:70%;height:auto;display:block;margin:0 auto 14px;}
-  .brand-header h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.01em;}
-  .brand-header p{margin:8px 0 0;font-size:13px;opacity:.92;max-width:520px;margin-left:auto;margin-right:auto;}
+  .brand-header h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.01em;color:var(--accent);}
+  .brand-header p{margin:8px 0 0;font-size:13px;opacity:.92;max-width:520px;margin-left:auto;margin-right:auto;color:var(--accent);}
   .plain-header{padding:32px 24px 20px;text-align:center;}
   .plain-header h1{margin:0;font-size:22px;font-weight:700;color:var(--ink);}
   .plain-header p{margin:8px 0 0;font-size:13px;color:var(--ink-soft);max-width:520px;margin-left:auto;margin-right:auto;}
@@ -79,6 +79,9 @@
   .success-screen h2{margin:0 0 8px;font-size:20px;}
   .success-screen p{color:var(--ink-soft);font-size:14px;}
   .error-banner{background:var(--danger-bg);color:var(--danger);border-radius:5px;padding:12px 16px;font-size:13px;font-weight:600;margin:16px;text-align:center;}
+  .view-banner{background:var(--accent-soft);color:var(--accent);border-radius:5px;padding:12px 16px;font-size:13px;font-weight:600;margin:16px;text-align:center;}
+  fieldset:disabled .choice{opacity:.75;}
+  fieldset:disabled .add-row-btn,fieldset:disabled .row-remove{display:none;}
   .file-input-wrap{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
 </style>
 </head>
@@ -95,6 +98,14 @@ const WCI_LOGO_B64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
 const qs = new URLSearchParams(location.search);
 const isWci = qs.get('wci') === '1';
 document.documentElement.setAttribute('data-brand', isWci ? 'wci' : 'plain');
+/* Read-only mode: the Charter Management System encodes the whole submitted
+   record straight into the link (?view=1&data=<json>) — nothing is fetched
+   from a server, so there's no need for any public read access to the
+   database (which would otherwise expose every client's passport numbers,
+   allergies, medical notes, etc. to anyone holding the anon key). The link
+   itself, plus whatever channel it's sent over, is what keeps it private. */
+const VIEW_MODE = qs.get('view') === '1';
+let VIEW_SENDER = '';
 
 function esc(s){
   return (s===undefined||s===null?'':String(s)).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -184,14 +195,11 @@ function render(){
     app.innerHTML = renderSuccess();
     return;
   }
-  app.innerHTML = `
-    ${renderHeader()}
-    <div class="wrap">
-      ${errorMsg ? `<div class="error-banner">${esc(errorMsg)}</div>` : ''}
+  const sections = `
       ${renderCharterInfo()}
       ${renderContact()}
-      ${renderTravel()}
       ${renderCharterParty()}
+      ${renderTravel()}
       ${renderPaceInterests()}
       ${renderDining()}
       ${renderFoodGrid()}
@@ -204,9 +212,17 @@ function render(){
       ${renderReading()}
       ${renderCabins()}
       ${renderNotes()}
+  `;
+  app.innerHTML = `
+    ${renderHeader()}
+    <div class="wrap">
+      ${errorMsg ? `<div class="error-banner">${esc(errorMsg)}</div>` : ''}
+      ${VIEW_MODE ? `<div class="view-banner">📋 Read-only copy${VIEW_SENDER?' — sent by '+esc(VIEW_SENDER):''}. Nothing here can be edited or submitted.</div>` : ''}
+      ${VIEW_MODE ? `<fieldset disabled style="border:none;padding:0;margin:0;">${sections}</fieldset>` : sections}
+      ${VIEW_MODE ? '' : `
       <div class="submit-bar">
         <button class="btn-submit" id="btn-submit" ${submitting?'disabled':''}>${submitting?'Sending…':'Submit Preference List'}</button>
-      </div>
+      </div>`}
       <div class="footer-note">
         ${isWci
           ? 'West Coast International UK Ltd. — Sterling House, Fulbourne Road, E17 4EE London UK — office@westcoastint.com — www.westcoastint.com<br>Strictly confidential — the information you provide here is used solely to prepare your charter.'
@@ -214,7 +230,7 @@ function render(){
       </div>
     </div>
   `;
-  wireEvents();
+  if(!VIEW_MODE) wireEvents();
 }
 
 function renderHeader(){
@@ -279,7 +295,7 @@ function renderContact(){
 function renderTravel(){
   return `
   <div class="card">
-    ${sectionHead(2,'Travel Arrangements')}
+    ${sectionHead(3,'Travel Arrangements')}
     <div class="card-body">
       <div class="subhead">Arrival</div>
       <div class="row c4">
@@ -317,7 +333,7 @@ function renderTravel(){
 function renderCharterParty(){
   return `
   <div class="card">
-    ${sectionHead(3,'Charter Party Details','Please list every guest — this helps your captain prepare paperwork ahead of time')}
+    ${sectionHead(2,'Charter Party Details','Please list every guest — this helps your captain prepare paperwork ahead of time')}
     <div class="card-body">
       <div class="table-scroll">
       <table class="grid">
@@ -946,6 +962,99 @@ function wireRepeatable(stateKey, dataAttr){
   });
 }
 
+/* Reverses the shape handleSubmit() below builds, so the read-only view can
+   reuse every render function as-is instead of duplicating the whole form. */
+function hydrateStateFromPayload(p){
+  const arrToMap = arr => Object.fromEntries((Array.isArray(arr)?arr:[]).map(v=>[v,true]));
+  const withIds = (arr, fallback) => (Array.isArray(arr) && arr.length ? arr : fallback).map(x=>Object.assign({id:uid()}, x));
+
+  STATE.clientName = p.client_name || '';
+  STATE.yachtName = p.yacht_name || '';
+  STATE.charterStartDate = p.charter_start_date || '';
+  STATE.charterEndDate = p.charter_end_date || '';
+  STATE.contactPhone = p.contact_phone || '';
+  STATE.contactEmail = p.contact_email || '';
+
+  const t = p.travel || {};
+  const arr = t.arrival || {}, dep = t.departure || {}, hb = t.hotelBefore || {}, ha = t.hotelAfter || {};
+  STATE.arrivalDate=arr.date||''; STATE.arrivalAirport=arr.airport||''; STATE.arrivalFlight=arr.flight||''; STATE.arrivalTime=arr.time||''; STATE.arrivalTransport=arr.notes||'';
+  STATE.departureDate=dep.date||''; STATE.departureAirport=dep.airport||''; STATE.departureFlight=dep.flight||''; STATE.departureTime=dep.time||''; STATE.departureTransport=dep.notes||'';
+  STATE.hotelBeforeName=hb.name||''; STATE.hotelBeforeIn=hb.in||''; STATE.hotelBeforeOut=hb.out||'';
+  STATE.hotelAfterName=ha.name||''; STATE.hotelAfterIn=ha.in||''; STATE.hotelAfterOut=ha.out||'';
+
+  STATE.passengers = withIds(p.charter_party, STATE.passengers);
+  STATE.pace = p.pace || '';
+  STATE.interests = arrToMap(p.interests);
+  STATE.sightseeingWishlist = p.sightseeing_wishlist || '';
+
+  const d = p.dining || {};
+  if(d.mealTimes) STATE.mealTimes = d.mealTimes;
+  if(d.breakfast) STATE.breakfastStyle = d.breakfast;
+  STATE.breakfastItems = arrToMap(d.breakfastItems);
+  STATE.breakfastSpreads = arrToMap(d.breakfastSpreads);
+  if(d.lunch) STATE.lunchStyle = d.lunch;
+  STATE.afternoonTea = d.afternoonTea || '';
+  if(d.dinner) STATE.dinnerStyle = d.dinner;
+  if(d.canapes) STATE.canapes = d.canapes;
+  if(d.snacks) STATE.snacks = d.snacks;
+  STATE.dineAshore = d.dineAshore || '';
+  STATE.cookingStyle = Array.isArray(d.cookingStyle) ? d.cookingStyle : [];
+  STATE.beefDoneness = d.beefDoneness || '';
+  STATE.soup = d.soup || '';
+  STATE.mayoCream = d.mayoCream || '';
+
+  STATE.foodGrid = withIds(p.food_grid, STATE.foodGrid).map(x=>({id:x.id, item:x.item, like:!!x.like, dislike:!!x.dislike, notes:x.notes||''}));
+  STATE.specialDiets = arrToMap(p.special_diets);
+  STATE.specialDietsOther = p.special_diets_other || '';
+  if(p.vegetarian_eats) STATE.vegetarianEats = p.vegetarian_eats;
+  STATE.cuisineStyle = p.cuisine_style || '';
+  STATE.favoriteDishes = p.favorite_dishes || '';
+  STATE.ingredientsAvoid = p.ingredients_avoid || '';
+
+  const fd = p.food_detail || {};
+  STATE.cuisineTags = arrToMap(fd.cuisineTags);
+  STATE.cuisineDislike = fd.cuisineDislike || '';
+  STATE.fishTypes = arrToMap(fd.fishTypes);
+  STATE.fishDislike = fd.fishDislike || '';
+  STATE.meatFavorites = fd.meatFavorites || '';
+  STATE.breadTypes = arrToMap(fd.breadTypes);
+  STATE.saladTypes = arrToMap(fd.saladTypes);
+  STATE.soupPreference = fd.soupPreference || '';
+  STATE.cheesePreference = fd.cheesePreference || '';
+  STATE.vegetablesPreference = fd.vegetablesPreference || '';
+  STATE.fruitTypes = arrToMap(fd.fruitTypes);
+  STATE.fruitOther = fd.fruitOther || '';
+  STATE.dessertPreference = fd.dessertPreference || '';
+
+  STATE.wines = withIds(p.wines, STATE.wines);
+  if(p.champagne) STATE.champagne = p.champagne;
+  STATE.maxPrice = withIds(p.max_price_per_bottle, STATE.maxPrice);
+  STATE.spirits = withIds(p.spirits, STATE.spirits);
+  STATE.softDrinks = p.soft_drinks || '';
+  STATE.cocktails = p.cocktails || '';
+
+  const wp = p.wine_preferences || {};
+  STATE.wineStyleTags = arrToMap(wp.styleTags);
+  STATE.sampleWineList = !!wp.sampleWineList;
+  if(wp.byColor) STATE.wineByColor = wp.byColor;
+  STATE.beers = wp.beers || '';
+  const bev = wp.beverages || {};
+  STATE.milkType=bev.milkType||''; STATE.coffeeType=bev.coffeeType||''; STATE.coffeeNotes=bev.coffeeNotes||'';
+  STATE.teaType=bev.teaType||''; STATE.teaNotes=bev.teaNotes||''; STATE.sweetenerType=bev.sweetenerType||'';
+  STATE.juiceType=bev.juiceType||''; STATE.juiceNotes=bev.juiceNotes||''; STATE.waterType=bev.waterType||''; STATE.waterBrand=bev.waterBrand||'';
+  STATE.mixersType=bev.mixersType||''; STATE.mixersBrand=bev.mixersBrand||''; STATE.softDrinkTypes=arrToMap(bev.softDrinkTypes);
+
+  STATE.medicalConditions = p.medical_conditions || '';
+  STATE.doctorContact = p.doctor_contact || '';
+  STATE.allergies = p.allergies || '';
+  STATE.occasions = withIds(p.occasions, STATE.occasions);
+  STATE.flowersPreference = p.flowers_preference || '';
+  STATE.flowersFrequency = p.flowers_frequency || '';
+  STATE.readingMaterial = p.reading_material || '';
+  STATE.cabins = withIds(p.cabins, STATE.cabins);
+  STATE.additionalNotes = p.additional_notes || '';
+}
+
 function handleSubmit(){
   if(STATE.website){ return; } // honeypot tripped — silently do nothing
   if(!STATE.clientName || !STATE.yachtName){
@@ -1061,6 +1170,16 @@ function handleSubmit(){
   });
 }
 
+if(VIEW_MODE){
+  try{
+    const decoded = JSON.parse(decodeURIComponent(qs.get('data') || ''));
+    VIEW_SENDER = decoded._sender || '';
+    hydrateStateFromPayload(decoded);
+  }catch(e){
+    console.error('Could not read the shared preference list', e);
+    errorMsg = 'This link looks incomplete or corrupted — ask for a fresh one.';
+  }
+}
 render();
 </script>
 </body>
