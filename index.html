@@ -99,12 +99,10 @@ const WCI_LOGO_B64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQ
 const qs = new URLSearchParams(location.search);
 const isWci = qs.get('wci') === '1';
 document.documentElement.setAttribute('data-brand', isWci ? 'wci' : 'plain');
-/* Read-only mode: the Charter Management System encodes the whole submitted
-   record straight into the link (?view=1&data=<json>) — nothing is fetched
-   from a server, so there's no need for any public read access to the
-   database (which would otherwise expose every client's passport numbers,
-   allergies, medical notes, etc. to anyone holding the anon key). The link
-   itself, plus whatever channel it's sent over, is what keeps it private. */
+/* Read-only mode (?view=1&t=<random code>): opened by the captain with a link created in the
+   Charter Management System. The record is stored there on the server; this page can only fetch
+   it through the get_captain_link() function, which needs the code AND the password, expires
+   after a while and locks after 5 wrong passwords. Nothing is readable with the anon key alone. */
 const VIEW_MODE = qs.get('view') === '1';
 let VIEW_SENDER = '';
 
@@ -1185,17 +1183,54 @@ function handleSubmit(){
   });
 }
 
-if(VIEW_MODE){
+/* Password gate for the read-only captain link: the link only carries a random code (?t=...);
+   the data is fetched from the server after the right password is typed (see
+   supabase-captain-links.sql in the management system). */
+function renderViewGate(message){
+  document.getElementById('app').innerHTML = `
+    ${renderHeader()}
+    <div class="wrap">
+      <div class="view-banner">🔒 This preference list is password protected.</div>
+      ${message ? `<div class="error-banner">${esc(message)}</div>` : ''}
+      <div style="max-width:360px;margin:24px auto;">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Password</label>
+        <input type="password" id="view-password" autocomplete="off" style="width:100%;padding:10px;font-size:15px;box-sizing:border-box;">
+        <div class="submit-bar"><button class="btn-submit" id="btn-unlock" type="button">Open</button></div>
+      </div>
+    </div>`;
+  const input = document.getElementById('view-password');
+  const go = ()=>unlockView(input.value);
+  document.getElementById('btn-unlock').addEventListener('click', go);
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter') go(); });
+  input.focus();
+}
+async function unlockView(password){
+  const token = qs.get('t') || '';
+  const btn = document.getElementById('btn-unlock');
+  if(btn){ btn.disabled = true; btn.textContent = 'Checking…'; }
   try{
-    const decoded = JSON.parse(decodeURIComponent(qs.get('data') || ''));
-    VIEW_SENDER = decoded._sender || '';
-    hydrateStateFromPayload(decoded);
+    const { data, error } = await supabaseClient.rpc('get_captain_link', {p_token: token, p_password: password});
+    if(error || !data) throw new Error('error');
+    if(!data.ok){
+      if(data.error === 'expired') return renderViewGate('This link has expired or is not valid — ask for a fresh one.');
+      if(data.error === 'locked') return renderViewGate('Too many wrong passwords — this link is locked. Ask for a fresh one.');
+      return renderViewGate('Wrong password, please try again.');
+    }
+    VIEW_SENDER = data.data._sender || '';
+    hydrateStateFromPayload(data.data);
+    errorMsg = '';
+    render();
   }catch(e){
-    console.error('Could not read the shared preference list', e);
-    errorMsg = 'This link looks incomplete or corrupted — ask for a fresh one.';
+    renderViewGate('Something went wrong, please try again.');
   }
 }
-render();
+
+if(VIEW_MODE){
+  if(qs.get('t')) renderViewGate('');
+  else renderViewGate('This link is no longer valid — ask for a fresh one.');
+}else{
+  render();
+}
 </script>
 </body>
 </html>
