@@ -130,6 +130,7 @@ const STATE = {
   departureDate:'', departureAirport:'', departureFlight:'', departureTime:'', departureTransport:'',
   hotelBeforeName:'', hotelBeforeIn:'', hotelBeforeOut:'',
   hotelAfterName:'', hotelAfterIn:'', hotelAfterOut:'',
+  arrivalNoTransfer:false, departureNoTransfer:false, hotelBeforeDirect:false, hotelAfterDirect:false,
   passengers: [ {id:uid(), name:'', nationality:'', dob:'', passportNo:'', passportExpiry:''}, {id:uid(), name:'', nationality:'', dob:'', passportNo:'', passportExpiry:''} ],
   pace: '', interests: {}, sightseeingWishlist:'', equipmentRequests:'',
   mealTimes:{breakfast:'', lunch:'', dinner:''},
@@ -147,6 +148,7 @@ const STATE = {
     'Cheese','Desserts / Cakes','Snacks & Cocktail Food'
   ].map(item=>({id:uid(), item, like:false, dislike:false, notes:''})),
   specialDiets: {}, specialDietsOther:'', specialDietsWho:'', vegetarianEats:{eggs:false,cheese:false,fish:false},
+  dietGuests: [ {id:uid(), guest:'', diets:{}, vegEats:{eggs:false,cheese:false,fish:false}, other:''} ],
   cuisineTags: {}, cuisineStyle:'', cuisineDislike:'', favoriteDishes:'', ingredientsAvoid:'',
   fishTypes: {}, fishDislike:'', meatFavorites:'',
   breadTypes: {}, saladTypes: {},
@@ -173,8 +175,8 @@ const STATE = {
 };
 
 const INTEREST_OPTIONS = ['Archaeology & culture','Local arts & crafts','Sightseeing','Meeting local people',
-  'Swimming & snorkeling','Diving','Water skiing / watersports','Fishing','Shopping','Dancing & night-life'];
-const DIET_OPTIONS = ['Dairy-free','Wheat / gluten-free','Low cholesterol','Vegetarian','Vegan','Low sodium','Low fat','Diabetic / sugar-free','Halal','Kosher'];
+  'Swimming & snorkeling','Diving','Water skiing / watersports','Fishing — at anchor','Fishing — trolling','Shopping','Dancing & night-life'];
+const DIET_OPTIONS = ['Dairy-free','Wheat / gluten-free','Low cholesterol','Vegetarian','Vegan','Pescatarian','Low sodium','Low fat','Diabetic / sugar-free','Halal','Kosher'];
 const CUISINE_OPTIONS = ['American','British','Chinese','French','Fusion','Indian','Italian','Japanese','Mexican','North American','Spanish','Thai'];
 const FISH_OPTIONS = ['Anchovies','Caviar','Clams','Cod','Crab','Eel','Haddock','Langoustine','Lobster','Mackerel',
   'Mussels','Oysters','Salmon','Sardines','Scallops','Sea Bass','Sea Bream','Shrimp','Snails','Sole','Squid','Trout','Tuna','Turbot','Sashimi'];
@@ -291,6 +293,11 @@ function renderContact(){
   </div>`;
 }
 
+/* A tick box that states "this does not apply" explicitly, so an empty section never looks like an oversight. */
+function flagChoice(key, label){
+  return `<div class="field"><div class="choice-group"><label class="choice ${STATE[key]?'checked':''}"><input type="checkbox" data-flag="${key}" ${STATE[key]?'checked':''}>${esc(label)}</label></div></div>`;
+}
+
 function renderTravel(){
   return `
   <div class="card">
@@ -303,7 +310,8 @@ function renderTravel(){
         <div class="field"><label class="field-label">Flight No.</label><input type="text" data-f="arrivalFlight" value="${esc(STATE.arrivalFlight)}"></div>
         <div class="field"><label class="field-label">Time</label><input type="time" data-f="arrivalTime" value="${esc(STATE.arrivalTime)}"></div>
       </div>
-      <div class="field"><label class="field-label">Transport needed from airport to yacht? / other arrival details (private plane tail number, handling company, etc.)</label><textarea data-f="arrivalTransport">${esc(STATE.arrivalTransport)}</textarea></div>
+      ${flagChoice('arrivalNoTransfer','No transfer needed — we will arrange our own arrival')}
+      ${STATE.arrivalNoTransfer ? '' : `<div class="field"><label class="field-label">Transport needed from airport to yacht? / other arrival details (private plane tail number, handling company, etc.)</label><textarea data-f="arrivalTransport">${esc(STATE.arrivalTransport)}</textarea></div>`}
 
       <div class="subhead">Departure</div>
       <div class="row c4">
@@ -312,20 +320,23 @@ function renderTravel(){
         <div class="field"><label class="field-label">Flight No.</label><input type="text" data-f="departureFlight" value="${esc(STATE.departureFlight)}"></div>
         <div class="field"><label class="field-label">Time</label><input type="time" data-f="departureTime" value="${esc(STATE.departureTime)}"></div>
       </div>
-      <div class="field"><label class="field-label">Transport needed from yacht to airport? / other departure details</label><textarea data-f="departureTransport">${esc(STATE.departureTransport)}</textarea></div>
+      ${flagChoice('departureNoTransfer','No transfer needed — we will arrange our own departure')}
+      ${STATE.departureNoTransfer ? '' : `<div class="field"><label class="field-label">Transport needed from yacht to airport? / other departure details</label><textarea data-f="departureTransport">${esc(STATE.departureTransport)}</textarea></div>`}
       <div class="note-hint">Please note: airport/yacht transfers are at the client's expense and will be deducted from the APA.</div>
 
       <div class="subhead">Hotel before / after charter (if any)</div>
-      <div class="row c3">
+      ${flagChoice('hotelBeforeDirect','No hotel before the charter — we go straight to the yacht')}
+      ${STATE.hotelBeforeDirect ? '' : `<div class="row c3">
         <div class="field"><label class="field-label">Hotel (before)</label><input type="text" data-f="hotelBeforeName" value="${esc(STATE.hotelBeforeName)}"></div>
         <div class="field"><label class="field-label">Date in</label><input type="date" data-f="hotelBeforeIn" value="${esc(STATE.hotelBeforeIn)}"></div>
         <div class="field"><label class="field-label">Date out</label><input type="date" data-f="hotelBeforeOut" value="${esc(STATE.hotelBeforeOut)}"></div>
-      </div>
-      <div class="row c3">
+      </div>`}
+      ${flagChoice('hotelAfterDirect','No hotel after the charter — we leave straight from the yacht')}
+      ${STATE.hotelAfterDirect ? '' : `<div class="row c3">
         <div class="field"><label class="field-label">Hotel (after)</label><input type="text" data-f="hotelAfterName" value="${esc(STATE.hotelAfterName)}"></div>
         <div class="field"><label class="field-label">Date in</label><input type="date" data-f="hotelAfterIn" value="${esc(STATE.hotelAfterIn)}"></div>
         <div class="field"><label class="field-label">Date out</label><input type="date" data-f="hotelAfterOut" value="${esc(STATE.hotelAfterOut)}"></div>
-      </div>
+      </div>`}
     </div>
   </div>`;
 }
@@ -376,6 +387,7 @@ function renderPaceInterests(){
             <label class="choice ${STATE.interests[o]?'checked':''}"><input type="checkbox" data-interest="${esc(o)}" ${STATE.interests[o]?'checked':''}>${esc(o)}</label>
           `).join('')}
         </div>
+        <div class="note-hint" style="margin:8px 0 0;">* Water toys: Personal Water Craft (wave runner or jet ski) use is strictly prohibited in some cruising destinations. Users are required to have a license in most areas where PWC use is permitted. Please discuss with your charter broker.</div>
       </div>
       <div class="field"><label class="field-label">Any specific sightseeing / excursions you'd like us to help arrange?</label><textarea data-f="sightseeingWishlist">${esc(STATE.sightseeingWishlist)}</textarea></div>
       <div class="field"><label class="field-label">Any other specific equipment to buy, rent or have on board (with extra charge to the client)?</label><textarea data-f="equipmentRequests">${esc(STATE.equipmentRequests)}</textarea></div>
@@ -544,26 +556,34 @@ function renderFoodGrid(){
 }
 
 function renderSpecialDiets(){
+  const names = STATE.passengers.map(p=>(p.name||'').trim()).filter(Boolean);
   return `
   <div class="card">
-    ${sectionHead(7,'Special Diets & Requirements')}
+    ${sectionHead(7,'Special Diets & Requirements','Please add one line for each guest who has a dietary requirement')}
     <div class="card-body">
-      <div class="field">
-        <div class="choice-group">
-          ${DIET_OPTIONS.map(o=>`<label class="choice ${STATE.specialDiets[o]?'checked':''}"><input type="checkbox" data-diet="${esc(o)}" ${STATE.specialDiets[o]?'checked':''}>${esc(o)}</label>`).join('')}
+      <datalist id="party-names">${['Whole group'].concat(names).map(n=>`<option value="${esc(n)}"></option>`).join('')}</datalist>
+      ${STATE.dietGuests.map(g=>`
+      <div class="diet-guest" data-dg-id="${g.id}" style="border:1px solid var(--line, #ddd);border-radius:6px;padding:12px 14px;margin-bottom:12px;">
+        <div class="row c2" style="align-items:end;">
+          <div class="field"><label class="field-label">Guest</label><input type="text" list="party-names" data-dg="guest" value="${esc(g.guest)}" placeholder="Name of the guest, or Whole group"></div>
+          <div class="field" style="text-align:right;">${STATE.dietGuests.length>1?`<button type="button" class="row-remove" data-dg-remove="${g.id}" title="Remove">×</button>`:''}</div>
         </div>
-      </div>
-      <div class="field"><label class="field-label">Please specify who in the group this applies to</label><input type="text" data-f="specialDietsWho" value="${esc(STATE.specialDietsWho)}"></div>
-      ${STATE.specialDiets['Vegetarian'] ? `
-      <div class="field">
-        <label class="field-label">If vegetarian, do you eat:</label>
-        <div class="choice-group">
-          <label class="choice ${STATE.vegetarianEats.eggs?'checked':''}"><input type="checkbox" data-veg="eggs" ${STATE.vegetarianEats.eggs?'checked':''}>Eggs</label>
-          <label class="choice ${STATE.vegetarianEats.cheese?'checked':''}"><input type="checkbox" data-veg="cheese" ${STATE.vegetarianEats.cheese?'checked':''}>Cheese</label>
-          <label class="choice ${STATE.vegetarianEats.fish?'checked':''}"><input type="checkbox" data-veg="fish" ${STATE.vegetarianEats.fish?'checked':''}>Fish</label>
+        <div class="field">
+          <div class="choice-group">
+            ${DIET_OPTIONS.map(o=>`<label class="choice ${g.diets[o]?'checked':''}"><input type="checkbox" data-dg-diet="${esc(o)}" ${g.diets[o]?'checked':''}>${esc(o)}</label>`).join('')}
+          </div>
         </div>
-      </div>` : ''}
-      <div class="field"><label class="field-label">Other requirement</label><input type="text" data-f="specialDietsOther" value="${esc(STATE.specialDietsOther)}"></div>
+        ${g.diets['Vegetarian'] ? `
+        <div class="field">
+          <label class="field-label">If vegetarian, does this guest eat:</label>
+          <div class="choice-group">
+            ${[['eggs','Eggs'],['cheese','Cheese'],['fish','Fish']].map(([k,l])=>`<label class="choice ${g.vegEats[k]?'checked':''}"><input type="checkbox" data-dg-veg="${k}" ${g.vegEats[k]?'checked':''}>${l}</label>`).join('')}
+          </div>
+        </div>` : ''}
+        <div class="field"><label class="field-label">Other requirement for this guest</label><input type="text" data-dg="other" value="${esc(g.other)}"></div>
+      </div>`).join('')}
+      <button type="button" class="add-row-btn" data-dg-add="1">+ Add guest</button>
+      <div class="field" style="margin-top:14px;"><label class="field-label">Other requirement (whole group)</label><input type="text" data-f="specialDietsOther" value="${esc(STATE.specialDietsOther)}"></div>
     </div>
   </div>`;
 }
@@ -852,6 +872,7 @@ function wireEvents(){
   });
 
   app.querySelectorAll('input[name="pace"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.pace = el.value; render(); }));
+  app.querySelectorAll('[data-flag]').forEach(el=>el.addEventListener('change', ()=>{ STATE[el.dataset.flag] = el.checked; render(); }));
   app.querySelectorAll('[data-interest]').forEach(el=>el.addEventListener('change', ()=>{ STATE.interests[el.dataset.interest] = el.checked; render(); }));
   app.querySelectorAll('input[name="bf-type"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.breakfastStyle.type = el.value; render(); }));
   app.querySelectorAll('input[name="bf-weight"]').forEach(el=>el.addEventListener('change', ()=>{ STATE.breakfastStyle.weight = el.value; render(); }));
@@ -900,8 +921,15 @@ function wireEvents(){
     STATE.foodGrid.find(f=>f.id===el.dataset.foodNotes).notes = el.value;
   }));
 
-  app.querySelectorAll('[data-diet]').forEach(el=>el.addEventListener('change', ()=>{ STATE.specialDiets[el.dataset.diet] = el.checked; render(); }));
-  app.querySelectorAll('[data-veg]').forEach(el=>el.addEventListener('change', ()=>{ STATE.vegetarianEats[el.dataset.veg] = el.checked; }));
+  app.querySelectorAll('.diet-guest').forEach(box=>{
+    const g = STATE.dietGuests.find(x=>x.id===box.dataset.dgId);
+    if(!g) return;
+    box.querySelectorAll('[data-dg]').forEach(el=>el.addEventListener('input', ()=>{ g[el.dataset.dg] = el.value; }));
+    box.querySelectorAll('[data-dg-diet]').forEach(el=>el.addEventListener('change', ()=>{ g.diets[el.dataset.dgDiet] = el.checked; render(); }));
+    box.querySelectorAll('[data-dg-veg]').forEach(el=>el.addEventListener('change', ()=>{ g.vegEats[el.dataset.dgVeg] = el.checked; render(); }));
+  });
+  app.querySelectorAll('[data-dg-remove]').forEach(el=>el.addEventListener('click', ()=>{ STATE.dietGuests = STATE.dietGuests.filter(x=>x.id!==el.dataset.dgRemove); render(); }));
+  app.querySelectorAll('[data-dg-add]').forEach(el=>el.addEventListener('click', ()=>{ STATE.dietGuests.push({id:uid(), guest:'', diets:{}, vegEats:{eggs:false,cheese:false,fish:false}, other:''}); render(); }));
   wireTagGroup('cuisinetag', STATE.cuisineTags);
   wireTagGroup('fishtype', STATE.fishTypes);
   wireTagGroup('breadtype', STATE.breadTypes);
@@ -988,6 +1016,7 @@ function hydrateStateFromPayload(p){
   STATE.departureDate=dep.date||''; STATE.departureAirport=dep.airport||''; STATE.departureFlight=dep.flight||''; STATE.departureTime=dep.time||''; STATE.departureTransport=dep.notes||'';
   STATE.hotelBeforeName=hb.name||''; STATE.hotelBeforeIn=hb.in||''; STATE.hotelBeforeOut=hb.out||'';
   STATE.hotelAfterName=ha.name||''; STATE.hotelAfterIn=ha.in||''; STATE.hotelAfterOut=ha.out||'';
+  STATE.arrivalNoTransfer=!!arr.noTransfer; STATE.departureNoTransfer=!!dep.noTransfer; STATE.hotelBeforeDirect=!!hb.direct; STATE.hotelAfterDirect=!!ha.direct;
 
   STATE.passengers = withIds(p.charter_party, STATE.passengers);
   STATE.pace = p.pace || '';
@@ -1022,6 +1051,12 @@ function hydrateStateFromPayload(p){
   STATE.ingredientsAvoid = p.ingredients_avoid || '';
 
   const fd = p.food_detail || {};
+  if(Array.isArray(fd.dietsByGuest) && fd.dietsByGuest.length){
+    STATE.dietGuests = fd.dietsByGuest.map(g=>({id:uid(), guest:g.guest||'', diets:arrToMap(g.diets), vegEats:Object.assign({eggs:false,cheese:false,fish:false}, arrToMap(g.vegetarianEats)), other:g.other||''}));
+  }else if((Array.isArray(p.special_diets) && p.special_diets.length) || p.special_diets_who){
+    // older record: one flat list for the whole group
+    STATE.dietGuests = [{id:uid(), guest:p.special_diets_who||'', diets:arrToMap(p.special_diets), vegEats:Object.assign({eggs:false,cheese:false,fish:false}, p.vegetarian_eats||{}), other:''}];
+  }
   STATE.cuisineTags = arrToMap(fd.cuisineTags);
   STATE.cuisineDislike = fd.cuisineDislike || '';
   STATE.fishTypes = arrToMap(fd.fishTypes);
@@ -1076,6 +1111,12 @@ function handleSubmit(){
   submitting = true; errorMsg = '';
   render();
 
+  const guestDiets = STATE.dietGuests.map(g=>({
+    guest: g.guest.trim(),
+    diets: Object.keys(g.diets).filter(k=>g.diets[k]),
+    vegetarianEats: g.diets['Vegetarian'] ? Object.keys(g.vegEats).filter(k=>g.vegEats[k]) : [],
+    other: g.other.trim()
+  })).filter(g=>g.guest || g.diets.length || g.other);
   const payload = {
     client_name: STATE.clientName,
     yacht_name: STATE.yachtName,
@@ -1084,10 +1125,10 @@ function handleSubmit(){
     contact_phone: STATE.contactPhone,
     contact_email: STATE.contactEmail,
     travel: {
-      arrival: {date:STATE.arrivalDate, airport:STATE.arrivalAirport, flight:STATE.arrivalFlight, time:STATE.arrivalTime, notes:STATE.arrivalTransport},
-      departure: {date:STATE.departureDate, airport:STATE.departureAirport, flight:STATE.departureFlight, time:STATE.departureTime, notes:STATE.departureTransport},
-      hotelBefore: {name:STATE.hotelBeforeName, in:STATE.hotelBeforeIn, out:STATE.hotelBeforeOut},
-      hotelAfter: {name:STATE.hotelAfterName, in:STATE.hotelAfterIn, out:STATE.hotelAfterOut}
+      arrival: {date:STATE.arrivalDate, airport:STATE.arrivalAirport, flight:STATE.arrivalFlight, time:STATE.arrivalTime, notes:STATE.arrivalNoTransfer?'':STATE.arrivalTransport, noTransfer:STATE.arrivalNoTransfer},
+      departure: {date:STATE.departureDate, airport:STATE.departureAirport, flight:STATE.departureFlight, time:STATE.departureTime, notes:STATE.departureNoTransfer?'':STATE.departureTransport, noTransfer:STATE.departureNoTransfer},
+      hotelBefore: {name:STATE.hotelBeforeDirect?'':STATE.hotelBeforeName, in:STATE.hotelBeforeDirect?'':STATE.hotelBeforeIn, out:STATE.hotelBeforeDirect?'':STATE.hotelBeforeOut, direct:STATE.hotelBeforeDirect},
+      hotelAfter: {name:STATE.hotelAfterDirect?'':STATE.hotelAfterName, in:STATE.hotelAfterDirect?'':STATE.hotelAfterIn, out:STATE.hotelAfterDirect?'':STATE.hotelAfterOut, direct:STATE.hotelAfterDirect}
     },
     charter_party: STATE.passengers.map(({id,...rest})=>rest),
     pace: STATE.pace,
@@ -1112,14 +1153,17 @@ function handleSubmit(){
       additionalInfo: STATE.diningAdditionalInfo
     },
     food_grid: STATE.foodGrid.map(({id,...rest})=>rest),
-    special_diets: Object.keys(STATE.specialDiets).filter(k=>STATE.specialDiets[k]),
+    /* special_diets / special_diets_who / vegetarian_eats keep the old flat shape (union over all guests) so
+       existing views and older records keep working; the per-guest detail is in food_detail.dietsByGuest. */
+    special_diets: [...new Set(guestDiets.flatMap(g=>g.diets))],
     special_diets_other: STATE.specialDietsOther,
-    special_diets_who: STATE.specialDietsWho,
-    vegetarian_eats: STATE.vegetarianEats,
+    special_diets_who: guestDiets.map(g=>(g.guest||'Guest') + (g.diets.length?' ('+g.diets.join(', ')+')':'') + (g.other?' — '+g.other:'')).join('; '),
+    vegetarian_eats: {eggs:guestDiets.some(g=>g.vegetarianEats.includes('eggs')), cheese:guestDiets.some(g=>g.vegetarianEats.includes('cheese')), fish:guestDiets.some(g=>g.vegetarianEats.includes('fish'))},
     cuisine_style: STATE.cuisineStyle,
     favorite_dishes: STATE.favoriteDishes,
     ingredients_avoid: STATE.ingredientsAvoid,
     food_detail: {
+      dietsByGuest: guestDiets,
       cuisineTags: Object.keys(STATE.cuisineTags).filter(k=>STATE.cuisineTags[k]),
       cuisineDislike: STATE.cuisineDislike,
       fishTypes: Object.keys(STATE.fishTypes).filter(k=>STATE.fishTypes[k]),
